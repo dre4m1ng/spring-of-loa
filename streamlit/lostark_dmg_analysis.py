@@ -3,6 +3,8 @@ import os
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objs as go
+import json
+from lostark import lostark_api
 
 # 영상 업로드
 def save_video_file(directory, file):    
@@ -46,27 +48,77 @@ def main():
     # page thumbnail
     st.image('./image/lostark_thumb.png')
     st.markdown("## Lost ARK 데미지 영상 분석기")
-    
-    classes = ['디스트로이어', '워로드', '버서커', '홀리나이트', '슬레이어', '배틀마스터', '인파이터', '기공사',
-            '창술사', '스트라이커', '브레이커', '데빌헌터', '블래스터', '호크아이', '스카우터', '건슬링어', '바드',
-            '서머너', '아르카나', '소서리스', '데모닉', '블레이드', '리퍼', '소울이터', '도화가', '기상술사']
-    
-    raids = ['발탄', '비아키스', '쿠크세이튼', '아브렐슈드', '일리아칸', '카멘', '카양겔', '혼돈의 상아탑', '에키드나', '베히모스']
 
-    st.selectbox('직업', classes)
-    st.selectbox('레이드', raids)
-    st.selectbox('관문', [1, 2, 3, 4])
+    raids = ['발탄', '비아키스', '쿠크세이튼', '아브렐슈드', '일리아칸', '카멘', '카양겔', '상아탑', '에키드나', '베히모스']
     
-    save_path = './data'
-    video_data = st.file_uploader("", type=['jpg', 'csv', 'mp4'])
+    with st.form(key='my_form'):
+        api_key = st.text_input(label='API Key')
+        char_name = st.text_input(label='닉네임')
+        raid = st.selectbox('레이드', raids)
+        diffi = st.selectbox('난이도', ['노말', '하드', '헬'])
+        gate = st.selectbox('관문', [1, 2, 3, 4])
 
-    if video_data is not None:
-        save_video_file(save_path, video_data)
+        save_path = './data'
+        video_data = st.file_uploader("", type=['jpg', 'csv', 'mp4'])
+
+        if video_data is not None:
+            save_video_file(save_path, video_data)
+
+            df = pd.read_csv(save_path + '/' + video_data.name)
+
+        submit_button = st.form_submit_button(label='분석 시작!')
+
+    if submit_button:
+        lostark = lostark_api.API(char_name, 'bearer ' + api_key)
+
+        user_profile = lostark.profile()
+
+        user_class = user_profile.get('CharacterClassName')
+        user_lv = user_profile.get('ItemAvgLevel')
+
+        user_equip = lostark.equipment()
+
+        el_sum = 0
+        chowal = 0
+        if float(user_lv.replace(',', '')) >= 1600:
+            for i in range(6):
+                eq_json = json.loads(user_equip[i].get('Tooltip'))
+
+                eq_dict = {}
+                for key, value in eq_json.items():
+                    eq_dict[key] = value
+
+                if i != 0:
+                    try:
+                        el01_lv = int(eq_dict.get('Element_010').get('value').get('Element_000').get('contentStr').get('Element_000').get('contentStr').split('</FONT>')[1][-1])
+                        el02_lv = int(eq_dict.get('Element_010').get('value').get('Element_000').get('contentStr').get('Element_001').get('contentStr').split('</FONT>')[1][-1])
+                    except (AttributeError, ValueError):
+                        try:
+                            el01_lv = int(eq_dict.get('Element_009').get('value').get('Element_000').get('contentStr').get('Element_000').get('contentStr').split('</FONT>')[1][-1])
+                            el02_lv = int(eq_dict.get('Element_009').get('value').get('Element_000').get('contentStr').get('Element_001').get('contentStr').split('</FONT>')[1][-1])
+                        except (AttributeError, ValueError):
+                            try:
+                                el01_lv = int(eq_dict.get('Element_008').get('value').get('Element_000').get('contentStr').get('Element_000').get('contentStr').split('</FONT>')[1][-1])
+                                el02_lv = int(eq_dict.get('Element_008').get('value').get('Element_000').get('contentStr').get('Element_001').get('contentStr').split('</FONT>')[1][-1])
+                            except AttributeError:
+                                pass
+                    el_sum += el01_lv + el02_lv
+
+                if float(user_lv.replace(',', '')) >= 1620 and i == 1:
+                    try:
+                        chowal = int(eq_dict.get('Element_009').get('value').get('Element_000').get('contentStr').get('Element_001').get('contentStr').split('</img>')[-1].split('개')[0])
+                    except:
+                        try:
+                            chowal = int(eq_dict.get('Element_008').get('value').get('Element_000').get('contentStr').get('Element_001').get('contentStr').split('</img>')[-1].split('개')[0])
+                        except:
+                            pass
+
+        st.markdown("**[케릭터 정보]**")
+        st.write('레벨:', user_lv)
+        st.write('직업:', user_class)
+        st.write('엘릭서:', el_sum)
+        st.write('초월:', chowal)
         
-        df = pd.read_csv(save_path + '/' + video_data.name)
-
-    if st.button("분석 시작!"):
-        # 분석코드
         time = [round(i * 0.08339, 2) for i in range(len(df))]
         critical = sum_dmg(df, 'critical')
         normal = sum_dmg(df, 'normal')
@@ -100,17 +152,13 @@ def main():
         sum_dmgs = int(sum(normal_filter['normal']) + sum(critical_filter['critical']))
         dps = round(sum_dmgs / time[-1], 2)
         
-        st.write('크리티컬 확률:', round(critical_cnt / (critical_cnt + normal_cnt), 3) * 100, '%')
-        st.write('최고 데미지:', format(max_dmgs, ','))
-        st.write('데미지 총합:', format(sum_dmgs, ','))
-        st.write('DPS:', format(dps, ','), 'dmg / s')
-        
-        st.info(f"""
-                크리티컬 확률: {crt_per} % \n
-                최고 데미지: {format(max_dmgs, ',')} \n
-                데미지 총합: {format(sum_dmgs, ',')} \n
-                DPS: {format(dps, ',')} dmg / s
-                """)
+        with st.form(key='final'):
+            st.write('크리티컬 확률 (%):', crt_per)
+            st.write('최고 데미지:', max_dmgs)
+            st.write('데미지 총합:', sum_dmgs)
+            st.write('DPS (dmg / s):', dps)
+            
+            st.form_submit_button('분석 완료!')
         
 if __name__ == "__main__":
     main()
