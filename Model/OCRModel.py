@@ -259,6 +259,7 @@ class OCRModel:
         no_gt_critical_count = 0
         no_gt_normal_count = 0
         saved_image_count = 0
+        model_performance = 0
 
         for result_item in results:
             image_name = result_item['Image Name']
@@ -338,7 +339,7 @@ class OCRModel:
         false_normal_percent = (false_normal_count / predicted_normal_count) * 100 if predicted_normal_count > 0 else 0
         no_gt_critical_percent = (no_gt_critical_count / predicted_critical_count) * 100 if predicted_critical_count > 0 else 0
         no_gt_normal_percent = (no_gt_normal_count / predicted_normal_count) * 100 if predicted_normal_count > 0 else 0
-        model_performance = ((total_images - total_error_count) / total_images) * 100 if model_performance > 0 else 0   # TP / TP + FP  => ## Precision
+        model_performance = ((total_images - total_error_count) / max(total_images, 1)) * 100   # TP / TP + FP  => ## Precision
 
         print()
         print(f"전체 예측 결과 수: {total_images}")
