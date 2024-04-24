@@ -158,6 +158,8 @@ class OCRModel:
         correct_normal_count = 0
         false_critical_count = 0
         false_normal_count = 0
+        false_negative_critical_count = 0
+        false_negative_normal_count = 0
 
         for gt_item in gt_data:
             gt_critical = gt_item['Critical']
@@ -175,29 +177,33 @@ class OCRModel:
                 # Critical 숫자 비교
                 correct_critical_count += sum(1 for x in pred_critical if x in gt_critical)
                 false_critical_count += sum(1 for x in pred_critical if x not in gt_critical)
+                false_negative_critical_count += sum(1 for x in gt_critical if x not in pred_critical)
 
                 # Normal 숫자 비교
                 correct_normal_count += sum(1 for x in pred_normal if x in gt_normal)
                 false_normal_count += sum(1 for x in pred_normal if x not in gt_normal)
+                false_negative_normal_count += sum(1 for x in gt_normal if x not in pred_normal)
             else:
                 false_critical_count += len(gt_critical)
                 false_normal_count += len(gt_normal)
+                false_negative_critical_count += len(gt_critical)
+                false_negative_normal_count += len(gt_normal)
 
         critical_precision = correct_critical_count / (correct_critical_count + false_critical_count) if (correct_critical_count + false_critical_count) > 0 else 0
         normal_precision = correct_normal_count / (correct_normal_count + false_normal_count) if (correct_normal_count + false_normal_count) > 0 else 0
 
-        critical_recall = correct_critical_count / total_critical_numbers if total_critical_numbers > 0 else 0
-        normal_recall = correct_normal_count / total_normal_numbers if total_normal_numbers > 0 else 0
+        critical_recall = correct_critical_count / (correct_critical_count + false_negative_critical_count) if (correct_critical_count + false_negative_critical_count) > 0 else 0
+        normal_recall = correct_normal_count / (correct_normal_count + false_negative_normal_count) if (correct_normal_count + false_negative_normal_count) > 0 else 0
 
-        critical_accuracy = correct_critical_count / (correct_critical_count + false_critical_count + (total_critical_numbers - correct_critical_count)) if (correct_critical_count + false_critical_count + (total_critical_numbers - correct_critical_count)) > 0 else 0
-        normal_accuracy = correct_normal_count / (correct_normal_count + false_normal_count + (total_normal_numbers - correct_normal_count)) if (correct_normal_count + false_normal_count + (total_normal_numbers - correct_normal_count)) > 0 else 0
+        critical_accuracy = correct_critical_count / total_critical_numbers if total_critical_numbers > 0 else 0
+        normal_accuracy = correct_normal_count / total_normal_numbers if total_normal_numbers > 0 else 0
 
-        # 전체 정확도 계산 추가
+        # 전체 정확도 계산
         total_correct_count = correct_critical_count + correct_normal_count
         total_numbers = total_critical_numbers + total_normal_numbers
         total_accuracy = total_correct_count / total_numbers if total_numbers > 0 else 0
 
-        return critical_precision, normal_precision, critical_recall, normal_recall, critical_accuracy, normal_accuracy, total_accuracy
+        return critical_precision, critical_recall, critical_accuracy, normal_precision, normal_recall, normal_accuracy, total_accuracy
     
     def calculate_total_damage(self, results):
         """
@@ -219,7 +225,7 @@ class OCRModel:
     def draw_text(self, image, text, position, color):
         cv2.putText(image, text, position, cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
 
-    def visualize_errors(self, results, gt_path, yellow_folder_path, white_folder_path, output_folder, confidence_threshold):
+    def visualize_errors(self, results, gt_path, yellow_folder_path, white_folder_path, output_folder):
         os.makedirs(output_folder, exist_ok=True)
         try:
             with open(gt_path, 'r', encoding='utf-8') as f:
@@ -228,9 +234,34 @@ class OCRModel:
             print(f"Error reading ground truth data from {gt_path}: {e}")
             return None
 
+        # results 인자의 타입 확인
+        if isinstance(results, str):
+            # JSON 파일 경로인 경우 파일에서 읽어오기
+            try:
+                with open(results, 'r', encoding='utf-8') as f:
+                    results = json.load(f)
+            except (IOError, OSError, json.JSONDecodeError) as e:
+                print(f"Error reading results from {results}: {e}")
+                return None
+        
+        elif isinstance(results, list):
+            # 리스트인 경우 그대로 사용
+            pass
+        else:
+            print("Invalid results format. Expected JSON file path or list.")
+            return None
+
+        total_images = len(results)
+        predicted_critical_count = 0
+        predicted_normal_count = 0
+        false_critical_count = 0
+        false_normal_count = 0
+        no_gt_critical_count = 0
+        no_gt_normal_count = 0
+        saved_image_count = 0
+
         for result_item in results:
             image_name = result_item['Image Name']
-            ocr_results = result_item['OCR_Results']
             image_modified = False
 
             # Ground truth 데이터에서 해당 이미지의 정보 가져오기
@@ -238,29 +269,28 @@ class OCRModel:
 
             if gt_item is None:
                 print(f"No ground truth data found for image: {image_name}")
-                pred_critical = [int(re.sub(r'\D', '', text)) for text, _, _ in ocr_results if re.search(r'\d', text) and text in result_item['Critical']]
-                pred_normal = [int(re.sub(r'\D', '', text)) for text, _, _ in ocr_results if re.search(r'\d', text) and text in result_item['Normal']]
-
-                # 이미지 처리 시작
-                image_path = None
-                text_position = (10, 30)
-
-                if pred_critical or pred_normal:
-                    # 이미지 경로 설정
-                    if pred_critical:
-                        image_path = os.path.join(yellow_folder_path, image_name)
-                    elif pred_normal:
-                        image_path = os.path.join(white_folder_path, image_name)
+                
+                if result_item['Critical']:
+                    no_gt_critical_count += len(result_item['Critical'])
+                    image_path = os.path.join(yellow_folder_path, image_name)
+                elif result_item['Normal']:
+                    no_gt_normal_count += len(result_item['Normal'])
+                    image_path = os.path.join(white_folder_path, image_name)
+                else:
+                    continue
+                
+                image = cv2.imread(image_path)
+                if image is not None:
+                    text_position = (10, 30)
                     
-                    image = cv2.imread(image_path)
-                    if image is not None:
-                        if pred_critical:
-                            self.draw_text(image, f"Predicted Critical: {', '.join(map(str, pred_critical))}", text_position, (0, 0, 255))
-                            text_position = (text_position[0], text_position[1] + 30)
-                        if pred_normal:
-                            self.draw_text(image, f"Predicted Normal: {', '.join(map(str, pred_normal))}", text_position, (255, 0, 0))
-                        
-                        image_modified = True
+                    if result_item['Critical']:
+                        self.draw_text(image, f"Predicted Critical: {', '.join(map(str, result_item['Critical']))}", text_position, (0, 0, 255))
+                        text_position = (text_position[0], text_position[1] + 30)
+                    
+                    if result_item['Normal']:
+                        self.draw_text(image, f"Predicted Normal: {', '.join(map(str, result_item['Normal']))}", text_position, (255, 0, 0))
+                    
+                    image_modified = True
 
             else:
                 gt_critical = set(gt_item['Critical'])
@@ -273,8 +303,15 @@ class OCRModel:
                 false_critical = pred_critical - gt_critical
                 false_normal = pred_normal - gt_normal
 
-                image_path = yellow_folder_path if false_critical else white_folder_path
-                image_path = os.path.join(image_path, image_name)
+                if false_critical:
+                    false_critical_count += len(false_critical)
+                    image_path = os.path.join(yellow_folder_path, image_name)
+                elif false_normal:
+                    false_normal_count += len(false_normal)
+                    image_path = os.path.join(white_folder_path, image_name)
+                else:
+                    continue
+
                 image = cv2.imread(image_path)
                 if image is not None:
                     if false_critical:
@@ -283,12 +320,36 @@ class OCRModel:
 
                     if false_normal:
                         self.draw_text(image, f"False Normal: {', '.join(map(str, false_normal))}", text_position, (255, 0, 0))
-                    
+
                     image_modified = True
 
             # 이미지 저장
             if image_modified:
+                saved_image_count += 1
                 output_path = os.path.join(output_folder, image_name)
                 cv2.imwrite(output_path, image)
+
+        predicted_critical_count = sum(len(result_item['Critical']) for result_item in results)
+        predicted_normal_count = sum(len(result_item['Normal']) for result_item in results)
+
+        total_error_count = false_critical_count + false_normal_count + no_gt_critical_count + no_gt_normal_count
+
+        false_critical_percent = (false_critical_count / predicted_critical_count) * 100 if predicted_critical_count > 0 else 0
+        false_normal_percent = (false_normal_count / predicted_normal_count) * 100 if predicted_normal_count > 0 else 0
+        no_gt_critical_percent = (no_gt_critical_count / predicted_critical_count) * 100 if predicted_critical_count > 0 else 0
+        no_gt_normal_percent = (no_gt_normal_count / predicted_normal_count) * 100 if predicted_normal_count > 0 else 0
+        model_performance = ((total_images - total_error_count) / total_images) * 100 if model_performance > 0 else 0   # TP / TP + FP  => ## Precision
+
+        print()
+        print(f"전체 예측 결과 수: {total_images}")
+        print(f"예측된 Critical 수: {predicted_critical_count}")
+        print(f"예측된 Normal 수: {predicted_normal_count}")
+        print(f"False Critical 수: {false_critical_count} ({false_critical_percent:.2f}%)")
+        print(f"False Normal 수: {false_normal_count} ({false_normal_percent:.2f}%)")
+        print(f"No GT Critical 수: {no_gt_critical_count} ({no_gt_critical_percent:.2f}%)")
+        print(f"No GT Normal 수: {no_gt_normal_count} ({no_gt_normal_percent:.2f}%)")
+        print(f"저장된 Error 이미지 수: {saved_image_count}")
+        print(f"전체 Error 수: {total_error_count}")
+        print(f"Model Performance: {model_performance:.2f}%")
 
         print('작업 완료')
