@@ -6,74 +6,80 @@ import cv2
 import paddle
 from paddleocr import PaddleOCR
 import matplotlib.pyplot as plt
+import wandb
 
-class OCRModel:
-    def __init__(self, lang='korean', use_gpu=True):
+class OCRModel_DB:
+    def __init__(self, lang='korean', use_gpu=True, project_name="ocr", entity="sol_of_loa", run_name=None):
         """
-        OCRModel í´ë˜ìŠ¤ë¥¼ ì´ˆê¸°í™”í•©ë‹ˆë‹¤.
+        OCRModel Å¬·¡½º¸¦ ÃÊ±âÈ­ÇÕ´Ï´Ù.
 
         Args:
-            lang (str, optional): OCR ëª¨ë¸ì˜ ì–¸ì–´. ê¸°ë³¸ê°’ì€ 'korean'ì…ë‹ˆë‹¤.
-            use_gpu (bool, optional): GPU ì‚¬ìš© ì—¬ë¶€. ê¸°ë³¸ê°’ì€ Trueì…ë‹ˆë‹¤.
+            lang (str, optional): OCR ¸ğµ¨ÀÇ ¾ğ¾î. ±âº»°ªÀº 'korean'ÀÔ´Ï´Ù.
+            use_gpu (bool, optional): GPU »ç¿ë ¿©ºÎ. ±âº»°ªÀº TrueÀÔ´Ï´Ù.
+            project_name (str, optional): wandb ÇÁ·ÎÁ§Æ® ÀÌ¸§. ±âº»°ªÀº 'OCR'ÀÔ´Ï´Ù.
+            run_name (str, optional): wandb ½ÇÇà ÀÌ¸§. ±âº»°ªÀº NoneÀÔ´Ï´Ù.
         """
         self.ocr = PaddleOCR(use_angle_cls=True, lang=lang, use_gpu=use_gpu)
 
+        # wanDB init
+        wandb.init(project=project_name, entity="sol_of_loa", name=run_name)
+
     def process_images(self, yellow_folder_path, white_folder_path, confidence_threshold=0.8):
         """
-        ë…¸ë€ìƒ‰ í´ë”ì™€ í•˜ì–€ìƒ‰ í´ë”ì˜ ì´ë¯¸ì§€ì—ì„œ í…ìŠ¤íŠ¸ë¥¼ ì¶”ì¶œí•˜ê³  ê²°ê³¼ë¥¼ ë°˜í™˜í•©ë‹ˆë‹¤.
+        ³ë¶õ»ö Æú´õ¿Í ÇÏ¾á»ö Æú´õÀÇ ÀÌ¹ÌÁö¿¡¼­ ÅØ½ºÆ®¸¦ ÃßÃâÇÏ°í °á°ú¸¦ ¹İÈ¯ÇÕ´Ï´Ù.
 
         Args:
-            yellow_folder_path (str): ë…¸ë€ìƒ‰ ì´ë¯¸ì§€ê°€ ìˆëŠ” í´ë” ê²½ë¡œ
-            white_folder_path (str): í•˜ì–€ìƒ‰ ì´ë¯¸ì§€ê°€ ìˆëŠ” í´ë” ê²½ë¡œ
-            confidence_threshold (float, optional): í…ìŠ¤íŠ¸ ì¸ì‹ ì‹ ë¢°ë„ ì„ê³„ê°’. ê¸°ë³¸ê°’ì€ 0.8ì…ë‹ˆë‹¤.
+            yellow_folder_path (str): ³ë¶õ»ö ÀÌ¹ÌÁö°¡ ÀÖ´Â Æú´õ °æ·Î
+            white_folder_path (str): ÇÏ¾á»ö ÀÌ¹ÌÁö°¡ ÀÖ´Â Æú´õ °æ·Î
+            confidence_threshold (float, optional): ÅØ½ºÆ® ÀÎ½Ä ½Å·Úµµ ÀÓ°è°ª. ±âº»°ªÀº 0.8ÀÔ´Ï´Ù.
 
         Returns:
-            list: ê° ì´ë¯¸ì§€ì—ì„œ ì¶”ì¶œëœ ìˆ«ì ì •ë³´ê°€ í¬í•¨ëœ ë”•ì…”ë„ˆë¦¬ ë¦¬ìŠ¤íŠ¸
+            list: °¢ ÀÌ¹ÌÁö¿¡¼­ ÃßÃâµÈ ¼ıÀÚ Á¤º¸°¡ Æ÷ÇÔµÈ µñ¼Å³Ê¸® ¸®½ºÆ®
         """
         results = []
         all_critical_numbers = set()
         all_normal_numbers = set()
 
-        # ë…¸ë€ìƒ‰ ì´ë¯¸ì§€ ì²˜ë¦¬
+        # ³ë¶õ»ö ÀÌ¹ÌÁö Ã³¸®
         self._process_folder(yellow_folder_path, results, all_critical_numbers, all_normal_numbers, is_yellow=True, confidence_threshold=confidence_threshold)
 
-        # í•˜ì–€ìƒ‰ ì´ë¯¸ì§€ ì²˜ë¦¬
+        # ÇÏ¾á»ö ÀÌ¹ÌÁö Ã³¸®
         self._process_folder(white_folder_path, results, all_critical_numbers, all_normal_numbers, is_yellow=False, confidence_threshold=confidence_threshold)
 
-        # Criticalê³¼ Normalì´ ëª¨ë‘ ë¹ˆ ë¦¬ìŠ¤íŠ¸ì¸ ê²½ìš° ì œì™¸
+        # Critical°ú NormalÀÌ ¸ğµÎ ºó ¸®½ºÆ®ÀÎ °æ¿ì Á¦¿Ü
         filtered_results = [result for result in results if result['Critical'] or result['Normal']]
 
         return filtered_results
 
     def _process_folder(self, folder_path, results, all_critical_numbers, all_normal_numbers, is_yellow, confidence_threshold):
         """
-        í´ë”ì˜ ì´ë¯¸ì§€ì—ì„œ í…ìŠ¤íŠ¸ë¥¼ ì¶”ì¶œí•˜ê³  ê²°ê³¼ë¥¼ ì €ì¥í•©ë‹ˆë‹¤.
+        Æú´õÀÇ ÀÌ¹ÌÁö¿¡¼­ ÅØ½ºÆ®¸¦ ÃßÃâÇÏ°í °á°ú¸¦ ÀúÀåÇÕ´Ï´Ù.
 
         Args:
-            folder_path (str): ì´ë¯¸ì§€ í´ë” ê²½ë¡œ
-            results (list): ê²°ê³¼ë¥¼ ì €ì¥í•  ë¦¬ìŠ¤íŠ¸
-            all_critical_numbers (set): ëª¨ë“  Critical ê°’ì„ ì €ì¥í•  set
-            all_normal_numbers (set): ëª¨ë“  Normal ê°’ì„ ì €ì¥í•  set
-            is_yellow (bool): ë…¸ë€ìƒ‰ ì´ë¯¸ì§€ì¸ì§€ ì—¬ë¶€
-            confidence_threshold (float): í…ìŠ¤íŠ¸ ì¸ì‹ ì‹ ë¢°ë„ ì„ê³„ê°’
+            folder_path (str): ÀÌ¹ÌÁö Æú´õ °æ·Î
+            results (list): °á°ú¸¦ ÀúÀåÇÒ ¸®½ºÆ®
+            all_critical_numbers (set): ¸ğµç Critical °ªÀ» ÀúÀåÇÒ set
+            all_normal_numbers (set): ¸ğµç Normal °ªÀ» ÀúÀåÇÒ set
+            is_yellow (bool): ³ë¶õ»ö ÀÌ¹ÌÁöÀÎÁö ¿©ºÎ
+            confidence_threshold (float): ÅØ½ºÆ® ÀÎ½Ä ½Å·Úµµ ÀÓ°è°ª
         """
         image_paths = glob.glob(os.path.join(folder_path, '*.jpg'))
         image_paths.sort(key=self.extract_number)
 
         for image_path in image_paths:
             try:
-                # ì´ë¯¸ì§€ ë¡œë“œ
+                # ÀÌ¹ÌÁö ·Îµå
                 image = cv2.imread(image_path)
 
-                # ì´ë¯¸ì§€ì—ì„œ í…ìŠ¤íŠ¸ ì¶”ì¶œ
+                # ÀÌ¹ÌÁö¿¡¼­ ÅØ½ºÆ® ÃßÃâ
                 result = self.ocr.ocr(image, cls=True)
 
-                # ì´ë¯¸ì§€ íŒŒì¼ ì´ë¦„ ì¶”ì¶œ
+                # ÀÌ¹ÌÁö ÆÄÀÏ ÀÌ¸§ ÃßÃâ
                 image_name = os.path.basename(image_path)
 
                 critical_numbers = []
                 normal_numbers = []
-                ocr_results = [] # OCR ê²°ê³¼ë¥¼ ì €ì¥í•  ë¦¬ìŠ¤íŠ¸
+                ocr_results = [] # OCR °á°ú¸¦ ÀúÀåÇÒ ¸®½ºÆ®
 
                 if result is not None and len(result) > 0:
                     for line in result:
@@ -89,7 +95,7 @@ class OCRModel:
                                     elif not is_yellow and int(extracted_text) not in all_normal_numbers:
                                         normal_numbers.append(int(extracted_text))
                                         all_normal_numbers.add(int(extracted_text))
-                                ocr_results.append((text, confidence, box)) # OCR ê²°ê³¼ ì €ì¥
+                                ocr_results.append((text, confidence, box)) # OCR °á°ú ÀúÀå
 
                 if is_yellow:
                     results.append({"Image Name": image_name, "Critical": critical_numbers, "Normal": [], "OCR_Results": ocr_results})
@@ -106,24 +112,24 @@ class OCRModel:
     @staticmethod
     def extract_number(filename):
         """
-        íŒŒì¼ ì´ë¦„ì—ì„œ ìˆ«ìë¥¼ ì¶”ì¶œí•©ë‹ˆë‹¤.
+        ÆÄÀÏ ÀÌ¸§¿¡¼­ ¼ıÀÚ¸¦ ÃßÃâÇÕ´Ï´Ù.
 
         Args:
-            filename (str): íŒŒì¼ ì´ë¦„
+            filename (str): ÆÄÀÏ ÀÌ¸§
 
         Returns:
-            int: ì¶”ì¶œëœ ë§ˆì§€ë§‰ ìˆ«ì, ìˆ«ìê°€ ì—†ìœ¼ë©´ -1 ë°˜í™˜
+            int: ÃßÃâµÈ ¸¶Áö¸· ¼ıÀÚ, ¼ıÀÚ°¡ ¾øÀ¸¸é -1 ¹İÈ¯
         """
         s = re.findall(r'\d+', filename)
         return int(s[-1]) if s else -1
 
     def save_results(self, results, output_path):
         """
-        ê²°ê³¼ë¥¼ JSON íŒŒì¼ë¡œ ì €ì¥í•©ë‹ˆë‹¤.
+        °á°ú¸¦ JSON ÆÄÀÏ·Î ÀúÀåÇÕ´Ï´Ù.
 
         Args:
-            results (list): ê° ì´ë¯¸ì§€ì—ì„œ ì¶”ì¶œëœ ìˆ«ì ì •ë³´ê°€ í¬í•¨ëœ ë”•ì…”ë„ˆë¦¬ ë¦¬ìŠ¤íŠ¸
-            output_path (str): ì¶œë ¥ íŒŒì¼ ê²½ë¡œ
+            results (list): °¢ ÀÌ¹ÌÁö¿¡¼­ ÃßÃâµÈ ¼ıÀÚ Á¤º¸°¡ Æ÷ÇÔµÈ µñ¼Å³Ê¸® ¸®½ºÆ®
+            output_path (str): Ãâ·Â ÆÄÀÏ °æ·Î
         """
         output_dir = os.path.dirname(output_path)
         os.makedirs(output_dir, exist_ok=True)
@@ -136,14 +142,14 @@ class OCRModel:
 
     def evaluate(self, results, gt_path):
         """
-        ê²°ê³¼ë¥¼ Ground Truth ë°ì´í„°ì™€ ë¹„êµí•˜ì—¬ ì •ë°€ë„, ì¬í˜„ìœ¨, ì •í™•ë„ë¥¼ ê³„ì‚°í•©ë‹ˆë‹¤.
+        °á°ú¸¦ Ground Truth µ¥ÀÌÅÍ¿Í ºñ±³ÇÏ¿© Á¤¹Ğµµ, ÀçÇöÀ², Á¤È®µµ¸¦ °è»êÇÕ´Ï´Ù.
 
         Args:
-            results (list): ê° ì´ë¯¸ì§€ì—ì„œ ì¶”ì¶œëœ ìˆ«ì ì •ë³´ê°€ í¬í•¨ëœ ë”•ì…”ë„ˆë¦¬ ë¦¬ìŠ¤íŠ¸
-            gt_path (str): Ground Truth ë°ì´í„° íŒŒì¼ ê²½ë¡œ
+            results (list): °¢ ÀÌ¹ÌÁö¿¡¼­ ÃßÃâµÈ ¼ıÀÚ Á¤º¸°¡ Æ÷ÇÔµÈ µñ¼Å³Ê¸® ¸®½ºÆ®
+            gt_path (str): Ground Truth µ¥ÀÌÅÍ ÆÄÀÏ °æ·Î
 
         Returns:
-            tuple: Criticalê³¼ Normalì— ëŒ€í•œ ì •ë°€ë„, ì¬í˜„ìœ¨, ì •í™•ë„
+            tuple: Critical°ú Normal¿¡ ´ëÇÑ Á¤¹Ğµµ, ÀçÇöÀ², Á¤È®µµ
         """
         try:
             with open(gt_path, 'r', encoding='utf-8') as f:
@@ -152,9 +158,9 @@ class OCRModel:
             print(f"Error reading ground truth data from {gt_path}: {e}")
             return None
         
-        # results ì¸ìì˜ íƒ€ì… í™•ì¸
+        # results ÀÎÀÚÀÇ Å¸ÀÔ È®ÀÎ
         if isinstance(results, str):
-            # JSON íŒŒì¼ ê²½ë¡œì¸ ê²½ìš° íŒŒì¼ì—ì„œ ì½ì–´ì˜¤ê¸°
+            # JSON ÆÄÀÏ °æ·ÎÀÎ °æ¿ì ÆÄÀÏ¿¡¼­ ÀĞ¾î¿À±â
             try:
                 with open(results, 'r', encoding='utf-8') as f:
                     results = json.load(f)
@@ -163,7 +169,7 @@ class OCRModel:
                 return None
         
         elif isinstance(results, list):
-            # ë¦¬ìŠ¤íŠ¸ì¸ ê²½ìš° ê·¸ëŒ€ë¡œ ì‚¬ìš©
+            # ¸®½ºÆ®ÀÎ °æ¿ì ±×´ë·Î »ç¿ë
             pass
         else:
             print("Invalid results format. Expected JSON file path or list.")
@@ -178,7 +184,7 @@ class OCRModel:
         false_negative_critical_count = 0
         false_negative_normal_count = 0
 
-        for gt_item in gt_data:
+        for i, gt_item in enumerate(gt_data):
             gt_critical = gt_item['Critical']
             gt_normal = gt_item['Normal']
 
@@ -191,12 +197,12 @@ class OCRModel:
                 pred_critical = result_item['Critical']
                 pred_normal = result_item['Normal']
 
-                # Critical ìˆ«ì ë¹„êµ
+                # Critical ¼ıÀÚ ºñ±³
                 correct_critical_count += sum(1 for x in pred_critical if x in gt_critical)
                 false_critical_count += sum(1 for x in pred_critical if x not in gt_critical)
                 false_negative_critical_count += sum(1 for x in gt_critical if x not in pred_critical)
 
-                # Normal ìˆ«ì ë¹„êµ
+                # Normal ¼ıÀÚ ºñ±³
                 correct_normal_count += sum(1 for x in pred_normal if x in gt_normal)
                 false_normal_count += sum(1 for x in pred_normal if x not in gt_normal)
                 false_negative_normal_count += sum(1 for x in gt_normal if x not in pred_normal)
@@ -205,6 +211,16 @@ class OCRModel:
                 false_normal_count += len(gt_normal)
                 false_negative_critical_count += len(gt_critical)
                 false_negative_normal_count += len(gt_normal)
+            
+            # wandb¿¡ º¯¼ö °ª ·Î±ë
+            wandb.log({
+                "correct_critical_count": correct_critical_count,
+                "correct_normal_count": correct_normal_count,
+                "false_critical_count": false_critical_count,
+                "false_normal_count": false_normal_count,
+                "false_negative_critical_count": false_negative_critical_count,
+                "false_negative_normal_count": false_negative_normal_count
+            }, step=i)
 
         critical_precision = correct_critical_count / (correct_critical_count + false_critical_count) if (correct_critical_count + false_critical_count) > 0 else 0
         normal_precision = correct_normal_count / (correct_normal_count + false_normal_count) if (correct_normal_count + false_normal_count) > 0 else 0
@@ -215,22 +231,33 @@ class OCRModel:
         critical_accuracy = correct_critical_count / total_critical_numbers if total_critical_numbers > 0 else 0
         normal_accuracy = correct_normal_count / total_normal_numbers if total_normal_numbers > 0 else 0
 
-        # ì „ì²´ ì •í™•ë„ ê³„ì‚°
+        # ÀüÃ¼ Á¤È®µµ °è»ê
         total_correct_count = correct_critical_count + correct_normal_count
         total_numbers = total_critical_numbers + total_normal_numbers
         total_accuracy = total_correct_count / total_numbers if total_numbers > 0 else 0
+
+        # wandb¿¡ ¸ŞÆ®¸¯ ·Î±ë
+        wandb.log({
+            "critical_precision": critical_precision,
+            "critical_recall": critical_recall,
+            "critical_accuracy": critical_accuracy,
+            "normal_precision": normal_precision,
+            "normal_recall": normal_recall,
+            "normal_accuracy": normal_accuracy,
+            "total_accuracy": total_accuracy
+        })
 
         return critical_precision, critical_recall, critical_accuracy, normal_precision, normal_recall, normal_accuracy, total_accuracy
     
     def calculate_total_damage(self, results):
         """
-        ê²°ê³¼ì—ì„œ Criticalê³¼ Normal ë°ë¯¸ì§€ì˜ í•©ê³„ë¥¼ ê³„ì‚°í•©ë‹ˆë‹¤.
+        °á°ú¿¡¼­ Critical°ú Normal µ¥¹ÌÁöÀÇ ÇÕ°è¸¦ °è»êÇÕ´Ï´Ù.
 
         Args:
-            results (list): ê° ì´ë¯¸ì§€ì—ì„œ ì¶”ì¶œëœ ìˆ«ì ì •ë³´ê°€ í¬í•¨ëœ ë”•ì…”ë„ˆë¦¬ ë¦¬ìŠ¤íŠ¸
+            results (list): °¢ ÀÌ¹ÌÁö¿¡¼­ ÃßÃâµÈ ¼ıÀÚ Á¤º¸°¡ Æ÷ÇÔµÈ µñ¼Å³Ê¸® ¸®½ºÆ®
 
         Returns:
-            tuple: Critical ë°ë¯¸ì§€ í•©ê³„, Normal ë°ë¯¸ì§€ í•©ê³„, ì „ì²´ ë°ë¯¸ì§€ í•©ê³„
+            tuple: Critical µ¥¹ÌÁö ÇÕ°è, Normal µ¥¹ÌÁö ÇÕ°è, ÀüÃ¼ µ¥¹ÌÁö ÇÕ°è
         """
         total_critical_damage = sum(sum(result_item['Critical']) for result_item in results)
         total_normal_damage = sum(sum(result_item['Normal']) for result_item in results)
@@ -251,9 +278,9 @@ class OCRModel:
             print(f"Error reading ground truth data from {gt_path}: {e}")
             return None
 
-        # results ì¸ìì˜ íƒ€ì… í™•ì¸
+        # results ÀÎÀÚÀÇ Å¸ÀÔ È®ÀÎ
         if isinstance(results, str):
-            # JSON íŒŒì¼ ê²½ë¡œì¸ ê²½ìš° íŒŒì¼ì—ì„œ ì½ì–´ì˜¤ê¸°
+            # JSON ÆÄÀÏ °æ·ÎÀÎ °æ¿ì ÆÄÀÏ¿¡¼­ ÀĞ¾î¿À±â
             try:
                 with open(results, 'r', encoding='utf-8') as f:
                     results = json.load(f)
@@ -262,7 +289,7 @@ class OCRModel:
                 return None
         
         elif isinstance(results, list):
-            # ë¦¬ìŠ¤íŠ¸ì¸ ê²½ìš° ê·¸ëŒ€ë¡œ ì‚¬ìš©
+            # ¸®½ºÆ®ÀÎ °æ¿ì ±×´ë·Î »ç¿ë
             pass
         else:
             print("Invalid results format. Expected JSON file path or list.")
@@ -282,7 +309,7 @@ class OCRModel:
             image_name = result_item['Image Name']
             image_modified = False
 
-            # Ground truth ë°ì´í„°ì—ì„œ í•´ë‹¹ ì´ë¯¸ì§€ì˜ ì •ë³´ ê°€ì ¸ì˜¤ê¸°
+            # Ground truth µ¥ÀÌÅÍ¿¡¼­ ÇØ´ç ÀÌ¹ÌÁöÀÇ Á¤º¸ °¡Á®¿À±â
             gt_item = next((item for item in gt_data if item["Image Name"] == image_name), None)
 
             if gt_item is None:
@@ -341,7 +368,7 @@ class OCRModel:
 
                     image_modified = True
 
-            # ì´ë¯¸ì§€ ì €ì¥
+            # ÀÌ¹ÌÁö ÀúÀå
             if image_modified:
                 saved_image_count += 1
                 output_path = os.path.join(output_folder, image_name)
@@ -358,16 +385,26 @@ class OCRModel:
         no_gt_normal_percent = (no_gt_normal_count / predicted_normal_count) * 100 if predicted_normal_count > 0 else 0
         model_performance = ((total_images - total_error_count) / max(total_images, 1)) * 100   # TP / TP + FP  => ## Precision
 
+        # wandb¿¡ ÃÖÁ¾ °á°ú ·Î±ë
+        wandb.log({
+            "False Critical %": false_critical_percent,
+            "False Normal %": false_normal_percent,
+            "No GT Critical %": no_gt_critical_percent,
+            "No GT Normal %": no_gt_normal_percent,
+            "ÀüÃ¼ Error ¼ö": total_error_count,
+            "Model Performance(precision)": model_performance
+        })
+
         print()
-        print(f"ì „ì²´ ì˜ˆì¸¡ ê²°ê³¼ ìˆ˜: {total_images}")
-        print(f"ì˜ˆì¸¡ëœ Critical ìˆ˜: {predicted_critical_count}")
-        print(f"ì˜ˆì¸¡ëœ Normal ìˆ˜: {predicted_normal_count}")
-        print(f"False Critical ìˆ˜: {false_critical_count} ({false_critical_percent:.2f}%)")
-        print(f"False Normal ìˆ˜: {false_normal_count} ({false_normal_percent:.2f}%)")
-        print(f"No GT Critical ìˆ˜: {no_gt_critical_count} ({no_gt_critical_percent:.2f}%)")
-        print(f"No GT Normal ìˆ˜: {no_gt_normal_count} ({no_gt_normal_percent:.2f}%)")
-        print(f"ì €ì¥ëœ Error ì´ë¯¸ì§€ ìˆ˜: {saved_image_count}")
-        print(f"ì „ì²´ Error ìˆ˜: {total_error_count}")
+        print(f"ÀüÃ¼ ¿¹Ãø °á°ú ¼ö: {total_images}")
+        print(f"¿¹ÃøµÈ Critical ¼ö: {predicted_critical_count}")
+        print(f"¿¹ÃøµÈ Normal ¼ö: {predicted_normal_count}")
+        print(f"False Critical ¼ö: {false_critical_count} ({false_critical_percent:.2f}%)")
+        print(f"False Normal ¼ö: {false_normal_count} ({false_normal_percent:.2f}%)")
+        print(f"No GT Critical ¼ö: {no_gt_critical_count} ({no_gt_critical_percent:.2f}%)")
+        print(f"No GT Normal ¼ö: {no_gt_normal_count} ({no_gt_normal_percent:.2f}%)")
+        print(f"ÀúÀåµÈ Error ÀÌ¹ÌÁö ¼ö: {saved_image_count}")
+        print(f"ÀüÃ¼ Error ¼ö: {total_error_count}")
         print(f"Model Performance: {model_performance:.2f}%")
 
-        print('ì‘ì—… ì™„ë£Œ')
+        print('ÀÛ¾÷ ¿Ï·á')
