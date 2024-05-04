@@ -259,12 +259,63 @@ class OCRModel_DB:
         Returns:
             tuple: Critical 데미지 합계, Normal 데미지 합계, 전체 데미지 합계
         """
+
+        # results 인자의 타입 확인
+        if isinstance(results, str):
+            # JSON 파일 경로인 경우 파일에서 읽어오기
+            try:
+                with open(results, 'r', encoding='utf-8') as f:
+                    results = json.load(f)
+            except (IOError, OSError, json.JSONDecodeError) as e:
+                print(f"Error reading results from {results}: {e}")
+                return None
+        
+        elif isinstance(results, list):
+            # 리스트인 경우 그대로 사용
+            pass
+        else:
+            print("Invalid results format. Expected JSON file path or list.")
+            return None
+
         total_critical_damage = sum(sum(result_item['Critical']) for result_item in results)
         total_normal_damage = sum(sum(result_item['Normal']) for result_item in results)
 
         total_damage = total_critical_damage + total_normal_damage
 
         return total_critical_damage, total_normal_damage, total_damage
+    
+    def evaluate_damage(self, total_damage, gt_path):
+        """
+        label 결과에서 Critical과 Normal 데미지의 합계를 계산 및 얼마 만큼의 데미지를 근접했는지 볼 수 있다.
+
+        Args:
+            total_damage (int): self.calculate_total_damage의 total_damage  
+            gt_path (list): 각 이미지에서 추출된 정답 숫자 정보가 포함된 딕셔너리 리스트
+
+        Returns:
+            float: label 데미지 합계를 이용한 모델의 결과의 근접치 정도.
+        """
+        try:
+            with open(gt_path, 'r', encoding='utf-8') as f:
+                gt_data = json.load(f)
+        except (IOError, OSError) as e:
+            print(f"Error reading ground truth data from {gt_path}: {e}")
+            return None
+
+        total_critical_damage = sum(sum(gt_item['Critical']) for gt_item in gt_data)
+        total_normal_damage = sum(sum(gt_item['Normal']) for gt_item in gt_data)
+
+        label_total_damge = total_critical_damage + total_normal_damage
+        model_total_damage = total_damage
+        
+        precent = label_total_damge/model_total_damage
+
+        # wandb에 최종 결과 로깅
+        wandb.log({
+            "Damage perent %": precent
+        })
+
+        return precent
     
     def draw_text(self, image, text, position, color):
         cv2.putText(image, text, position, cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
