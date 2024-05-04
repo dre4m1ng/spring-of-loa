@@ -18,7 +18,7 @@ class VideoPreprocessor:
         cap = cv2.VideoCapture(self.video_path)
 
         # 설정한 FPS에 맞춰 간격을 계산
-        frame_interval = int(cap.get(cv2.CAP_PROP_FPS) / self.fps)  # fps = 내가 원하는 output의 fps 10 fps = 60/10 => 1초에 10장이 나오는 6fps으로 나눈것.
+        frame_interval = round(cap.get(cv2.CAP_PROP_FPS) / self.fps)  # fps = 내가 원하는 output의 fps 10 fps = 60/10 => 1초에 10장이 나오는 6fps으로 나눈것.
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         current_frame = 0
 
