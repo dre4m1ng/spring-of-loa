@@ -119,16 +119,41 @@ class preprocess():
         if image is None:
             image = self.image
 
+        # 사이즈 타입별 처리 로직
         if self.size_type == 1:
             # 이미지를 700x700으로 줄임
-            image = cv2.resize(image, (self.quality, self.quality))   # 700, 750, 800, 850 1:1 비율
+            image = cv2.resize(image, (self.quality, self.quality))
             # 다시 1920x1080으로 확대
             image = cv2.resize(image, (1920, 1080))
-        if self.size_type == 2:
-            # 이미지를 720x405 줄임
-            image = cv2.resize(image, (720, 405))   # 720:405 비율
+        elif self.size_type == 2:
+            # 이미지를 720x405로 줄임
+            image = cv2.resize(image, (720, 405))
             # 다시 1920x1080으로 확대
             image = cv2.resize(image, (1920, 1080))
+        elif self.size_type == 3:
+            # 이미지를 960x540으로 줄임(1/2)
+            image = cv2.resize(image, (960, 540))
+            # 다시 1920x1080으로 확대
+            image = cv2.resize(image, (1920, 1080))
+        elif self.size_type == 4:
+            # 이미지를 960x540으로 줄임 ((1/2) 확대 없음)
+            image = cv2.resize(image, (960, 540))
+        elif self.size_type == 5:
+            # 이미지를 640x360으로 줄임(1/3)
+            image = cv2.resize(image, (640, 360))
+            # 다시 1920x1080으로 확대
+            image = cv2.resize(image, (1920, 1080))
+        elif self.size_type == 6:
+            # 이미지를 640x360으로 줄임 ((1/3) 확대 없음)
+            image = cv2.resize(image, (640, 360))
+        elif self.size_type == 7:
+            # 이미지를 480x270으로 줄임(1/4)
+            image = cv2.resize(image, (480, 270))
+            # 다시 1920x1080으로 확대
+            image = cv2.resize(image, (1920, 1080))
+        elif self.size_type == 8:
+            # 이미지를 480x270으로 줄임 ((1/4) 확대 없음)
+            image = cv2.resize(image, (480, 270))
 
         resize_image = image
         # 최종 결과를 저장
@@ -139,16 +164,16 @@ class preprocess():
         return self.image
 
 
+
     def extract_yellow(self, image=None, save=False):   # 이미지 처리
         if image is None:
             image = self.image
 
         # HSV(Hue, Saturation, Value)로 이미지를 변환합니다.
-        hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)     
 
-        # 노란색의 HSV 범위를 정의합니다.                               # 남궁맑음
-        lower_yellow = np.array([20, 160, 215])  # 노란색의 하한값      # [30, 150, 120]
-        upper_yellow = np.array([40, 255, 255])  # 노란색의 상한값      # [90, 255, 255]
+        lower_yellow = np.array([22, 160, 250])  # 노란색의 하한값
+        upper_yellow = np.array([35, 255, 255])  # 노란색의 상한값
 
         # HSV 이미지에서 노란색 범위에 해당하는 픽셀을 찾습니다.
         yellow_mask = cv2.inRange(hsv_image, lower_yellow, upper_yellow)
@@ -174,8 +199,8 @@ class preprocess():
         hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
         # 하얀색의 HSV 범위를 정의합니다. (하얀색은 채도가 낮고 명도가 높습니다.)
-        lower_white = np.array([0, 0, 200])
-        upper_white = np.array([180, 25, 255])
+        lower_white = np.array([0, 0, 235])
+        upper_white = np.array([180, 20, 255])
 
         # HSV 이미지에서 하얀색 범위에 해당하는 픽셀을 찾습니다.
         white_mask = cv2.inRange(hsv_image, lower_white, upper_white)
@@ -234,6 +259,10 @@ class preprocess():
 
 
     def binarize_image(self, image=None, save=False):
+        """
+        이진화 함수입니다.
+        특정 임계값(이미지 전체의 평균이나 기타 라이브러리마다 임계값 정하는 방식은 다릅니다) 기준으로 0과 255로 밝기를 조절합니다.
+        """
         if image is None:
             image = self.image
 
@@ -248,6 +277,53 @@ class preprocess():
 
         self.image = otsu_thresholded
         return self.image
+
+    def back_binarize_image(self, image=None, save=False):
+        """
+        역 이진화 함수입니다.
+        이진화 함수의 결과물에서 흰색과 검은색을 바꿉니다.
+        """
+        if image is None:
+            image = self.image
+
+        # 이미지를 그레이스케일로 로드
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+        # 이진화 수행하고 결과 반전
+        _, otsu_thresholded = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+        if save:
+            cv2.imwrite(os.path.join(self.save_folder, self.save_name + '_binary.jpg'), otsu_thresholded)
+
+        self.image = otsu_thresholded
+        return self.image
+
+    def opened_image(image):
+        """
+        형태학이라 하는 morphology 전처리입니다.
+        open은, 거친 부분에서 구멍을 채우는 방식으로 매끄럽게 한다고 보시면 됩니다.
+        """
+        # 구조 요소 정의
+        kernel = np.ones((3,3), np.uint8)
+
+        # 열기 연산 수행
+        image = cv2.morphologyEx(image, cv2.MORPH_OPEN, kernel)
+
+        return image
+
+    # 형태학적 처리를 추가하는 함수(닫기)
+    def closed_image(image):
+        """
+        형태학이라 하는 morphology 전처리입니다.
+        close는, 거친 부분에서 튀어나온 부분을 깍아내서 매끄럽게 한다고 보시면 됩니다.
+        """
+
+        # 구조 요소 정의
+        kernel = np.ones((3,3), np.uint8)
+
+        # 닫기 연산 수행
+        image = cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel)
+        return image
 
 
     # RGB to CMYK 변환 함수 -> 폐기 ....가능성 다분
