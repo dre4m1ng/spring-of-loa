@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objs as go
 import json
-import lostark_api
+from lostark import lostark_api
 from Model import OCRModel, Preprocesser_utils
 
 # 영상 업로드
