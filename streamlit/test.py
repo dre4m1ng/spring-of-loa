@@ -48,7 +48,7 @@ def dmg_count(df, type):
 # streamlit main
 def main():
     # page thumbnail
-    tumb_img = Image.open('./image/lostark_thumb.png')
+    tumb_img = Image.open('./streamlit/image/lostark_thumb.png')
     st.image(tumb_img)
     st.markdown("## Lost ARK 데미지 영상 분석기")
 
