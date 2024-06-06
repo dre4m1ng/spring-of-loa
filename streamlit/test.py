@@ -6,6 +6,7 @@ import plotly.graph_objs as go
 import json
 from lostark import lostark_api
 from Model import OCRModel, Preprocesser_utils
+from PIL import Image
 
 # 영상 업로드
 def save_video_file(directory, file):    
@@ -47,7 +48,8 @@ def dmg_count(df, type):
 # streamlit main
 def main():
     # page thumbnail
-    st.image('./image/lostark_thumb.png')
+    tumb_img = Image.open('./image/lostark_thumb.png')
+    st.image(tumb_img)
     st.markdown("## Lost ARK 데미지 영상 분석기")
 
     raids = ['발탄', '비아키스', '쿠크세이튼', '아브렐슈드', '일리아칸', '카멘', '카양겔', '상아탑', '에키드나', '베히모스']
