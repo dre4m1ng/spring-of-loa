@@ -8,6 +8,7 @@ import plotly.express as px
 import plotly.graph_objs as go
 from lostark import lostark_api
 from Model import test_model
+import json
 from PIL import Image
 
 def process_frame(frame_data):
