@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import re
 from paddleocr import PaddleOCR
+from multiprocessing import Pool
 
 class Model:
     def __init__(self, image):
@@ -15,11 +16,15 @@ class Model:
             text, confi = ocr_result[0][0][1]
             if isinstance(confi, float) and confi > 0.8:
                 extracted_text = re.sub(r'[^0-9]', '', text)
+                if extracted_text == '':
+                    extracted_num = 0
+                else:
+                    extracted_num = int(extracted_text)
             else:
-                extracted_text = '0'
+                extracted_num = 0
         else:
-            extracted_text = '0'
-        return extracted_text
+            extracted_num = 0
+        return extracted_num
         
     def critical(self):
         lower_yellow = np.array([20, 160, 215])
@@ -40,3 +45,4 @@ class Model:
         nor_image = self.image.copy()
         nor_image[nor_mask == 0] = [0, 0, 0]
         return self.extract_dmg(nor_image)
+    
