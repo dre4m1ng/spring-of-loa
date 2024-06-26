@@ -4,3 +4,4 @@ pyarrow==15.0.2
 paddleocr==2.7.3
 paddlepaddle==2.6.1
 pillow==10.3.0
+streamlit==1.32.2
