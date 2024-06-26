@@ -6,16 +6,16 @@ import math
 from multiprocessing import Pool
 import plotly.express as px
 import plotly.graph_objs as go
-from lostark import lostark_api
-from Model import test_model
+from lostark import lostark_api, ExtractDmg
+from Model import ExtractDmg
 import json
 from PIL import Image
 
 def process_frame(frame_data):
     frame_number, frame = frame_data
-    model = test_model.Model(frame)
-    cri = model.critical()
-    nor = model.normal()
+    model = ExtractDmg.Model(frame)
+    cri = model.img_preprocessing(type='critical')
+    nor = model.img_preprocessing(type='normal')
     return frame_number, cri, nor
 
 def process_frames_chunk(frames_chunk, process_count):
@@ -65,7 +65,7 @@ def main():
             frame_number = 0
             frame_interval = 10
 
-            while frame_number < 5000:
+            while frame_number < total_frames:
                 ret, frame = video.read()
                 if not ret:
                     break
