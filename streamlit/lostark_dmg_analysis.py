@@ -7,7 +7,7 @@ from multiprocessing import Pool
 import plotly.express as px
 import plotly.graph_objs as go
 from lostark import lostark_api, ExtractDmg
-from Model import ExtractDmg
+from lostark import ExtractDmg
 import json
 from PIL import Image
 
